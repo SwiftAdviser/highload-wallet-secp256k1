@@ -2,7 +2,7 @@ import { Blockchain, EmulationError, SandboxContract, createShardAccount, intern
 import { beginCell, Cell, SendMode, toNano, Address, internal as internal_relaxed, Dictionary, BitString, OutActionSendMsg } from '@ton/core';
 import {HighloadWalletV3, TIMEOUT_SIZE, TIMESTAMP_SIZE} from '../wrappers/HighloadWalletV3';
 import '@ton/test-utils';
-import { getSecureRandomBytes, KeyPair, keyPairFromSeed } from "ton-crypto";
+import { getSecureRandomBytes, KeyPair, keyPairFromSeed } from "@ton/crypto";
 import { randomBytes } from "crypto";
 import {SUBWALLET_ID, Errors, DEFAULT_TIMEOUT, maxKeyCount, maxShift} from "./imports/const";
 import { compile } from '@ton/blueprint';

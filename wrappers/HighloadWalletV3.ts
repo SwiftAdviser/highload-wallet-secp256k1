@@ -16,7 +16,7 @@ import {
     toNano
 } from '@ton/core';
 // import { hex as CodeHex } from '../build/HighloadWalletV3.compiled.json';
-import {sign} from "ton-crypto";
+import {sign} from "@ton/crypto";
 import {OP} from "../tests/imports/const";
 import {HighloadQueryId} from "./HighloadQueryId";
 
