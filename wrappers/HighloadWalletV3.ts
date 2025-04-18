@@ -16,14 +16,15 @@ import {
     toNano
 } from '@ton/core';
 // import { hex as CodeHex } from '../build/HighloadWalletV3.compiled.json';
-import {sign} from "ton-crypto";
+// import {sign} from "ton-crypto";
 import {OP} from "../tests/imports/const";
 import {HighloadQueryId} from "./HighloadQueryId";
+import { secp256k1 as secp} from "ethereum-cryptography/secp256k1";
 
 // export const HighloadWalletV3Code = Cell.fromBoc(Buffer.from(CodeHex, "hex"))[0]
 
 export type HighloadWalletV3Config = {
-    publicKey: Buffer,
+    publicKey: Uint8Array,
     subwalletId: number,
     timeout: number
 };
@@ -34,7 +35,7 @@ export const TIMEOUT_SIZE = 22;
 
 export function highloadWalletV3ConfigToCell(config: HighloadWalletV3Config): Cell {
     return beginCell()
-        .storeBuffer(config.publicKey)
+        .storeBuffer(Buffer.from(config.publicKey.subarray(1, config.publicKey.length)))
         .storeUint(config.subwalletId, 32)
         .storeUint(0, 1 + 1 + TIMESTAMP_SIZE)
         .storeUint(config.timeout, TIMEOUT_SIZE)
@@ -67,7 +68,7 @@ export class HighloadWalletV3 implements Contract {
 
     async sendExternalMessage(
         provider: ContractProvider,
-        secretKey: Buffer,
+        secretKey: Uint8Array,
         opts: {
             message: MessageRelaxed | Cell,
             mode: number,
@@ -98,15 +99,19 @@ export class HighloadWalletV3 implements Contract {
             .storeUint(opts.timeout, TIMEOUT_SIZE)
             .endCell();
 
+            const signature = await secp.sign(messageInner.hash(), secretKey);
         await provider.external(
             beginCell()
-                .storeBuffer(sign(messageInner.hash(), secretKey))
+                .storeUint(signature.recovery, 8)
+                .storeUint(signature.r, 256)
+                .storeUint(signature.s, 256)
+                // .storeBuffer(Buffer.from(signature.toCompactRawBytes()))
                 .storeRef(messageInner)
                 .endCell()
         );
     }
 
-    async sendBatch(provider: ContractProvider, secretKey: Buffer, messages: OutActionSendMsg[], subwallet: number, query_id: HighloadQueryId, timeout: number, createdAt?: number, value: bigint = 0n) {
+    async sendBatch(provider: ContractProvider, secretKey: Uint8Array, messages: OutActionSendMsg[], subwallet: number, query_id: HighloadQueryId, timeout: number, createdAt?: number, value: bigint = 0n) {
         if (createdAt == undefined) {
             createdAt = Math.floor(Date.now() / 1000);
         }

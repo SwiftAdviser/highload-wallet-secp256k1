@@ -10,10 +10,19 @@ import { getRandomInt } from '../utils';
 import { findTransactionRequired, randomAddress } from '@ton/test-utils';
 import { MsgGenerator } from '../wrappers/MsgGenerator';
 import {HighloadQueryId} from "../wrappers/HighloadQueryId";
+import { secp256k1 as secp} from "ethereum-cryptography/secp256k1";
+// import { secp256k1 as secp} from '@noble/curves/secp256k1';
 
+
+type SECPKeyPair = {
+    publicKey: Uint8Array,
+    publicKeyNoPfx: Buffer,
+    secretKey: Uint8Array
+}
 
 describe('HighloadWalletV3', () => {
-    let keyPair: KeyPair;
+    // console.log(secp);
+    let keyPair: SECPKeyPair;
     let code: Cell;
 
     let blockchain: Blockchain;
@@ -24,7 +33,16 @@ describe('HighloadWalletV3', () => {
     let getContractCode: (address: Address) => Promise<Cell>;
 
     beforeAll(async () => {
-        keyPair = keyPairFromSeed(await getSecureRandomBytes(32));
+        // keyPair = keyPairFromSeed(await getSecureRandomBytes(32));
+        const privKey = secp.utils.randomPrivateKey();
+        const pubKey  = await secp.getPublicKey(privKey,);
+
+        keyPair = {
+            secretKey: privKey,
+            publicKey: pubKey,
+            publicKeyNoPfx: Buffer.from(pubKey.slice(1, pubKey.length))
+        };
+
         code    = await compile('HighloadWalletV3');
 
         shouldRejectWith = async (p, code) => {
@@ -97,7 +115,7 @@ describe('HighloadWalletV3', () => {
     });
 
     it('should deploy', async () => {
-        expect(await highloadWalletV3.getPublicKey()).toEqual(keyPair.publicKey);
+        expect(await highloadWalletV3.getPublicKey()).toEqual(keyPair.publicKeyNoPfx);
     });
 
     it('should pass check sign', async () => {
@@ -108,6 +126,8 @@ describe('HighloadWalletV3', () => {
 
             const queryId = HighloadQueryId.fromShiftAndBitNumber(BigInt(rndShift), BigInt(rndBitNum));
 
+            const smc = await blockchain.getContract(highloadWalletV3.address);
+            // smc.setVerbosity('vm_logs_full');
             const testResult = await highloadWalletV3.sendExternalMessage(
                 keyPair.secretKey,
                 {
@@ -136,11 +156,13 @@ describe('HighloadWalletV3', () => {
     it('should fail check sign', async () => {
         const message = highloadWalletV3.createInternalTransfer({actions: [], queryId: HighloadQueryId.fromQueryId(0n), value: 0n})
 
-        let badKey: Buffer;
+        let badKey: Uint8Array;
+        let badKeyBuff: Buffer;
         // Just in case we win a lotto
         do {
-            badKey = randomBytes(64);
-        } while(badKey.equals(keyPair.secretKey));
+            badKey = secp.utils.randomPrivateKey();
+            badKeyBuff = Buffer.from(badKey);
+        } while(badKeyBuff.equals(Buffer.from(keyPair.secretKey)));
 
         const rndShift   = getRandomInt(0, maxShift);
         const rndBitNum  = getRandomInt(0, 1022);
