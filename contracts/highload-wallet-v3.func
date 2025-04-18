@@ -1,4 +1,5 @@
 #include "imports/stdlib.fc";
+#include "secp256k1.func";
 
 ;;; Store binary true b{1} into `builder` [b]
 builder store_true(builder b) asm "STONE";
@@ -17,7 +18,8 @@ const int error::invalid_message_to_send = 37;
 const int error::invalid_timeout = 38;
 
 const int KEY_SIZE = 13;
-const int SIGNATURE_SIZE = 512;
+const int SIGNATURE_SIZE = 512 + 8;
+const int KEY_PREFIX_SIZE = 8;
 const int PUBLIC_KEY_SIZE = 256;
 const int SUBWALLET_ID_SIZE = 32;
 const int TIMESTAMP_SIZE = 64;
@@ -80,7 +82,7 @@ const int BIT_NUMBER_SIZE = 10; ;; 2^10 = 1024
         last_clean_time = now();
     }
 
-    throw_unless(error::invalid_signature, check_signature(msg_inner_hash, signature, public_key));
+    throw_unless(error::invalid_signature, check_secp256k1_signature(msg_inner_hash, signature, public_key));
 
     slice msg_inner_slice = msg_inner.begin_parse();
     int _subwallet_id = msg_inner_slice~load_uint(SUBWALLET_ID_SIZE);
