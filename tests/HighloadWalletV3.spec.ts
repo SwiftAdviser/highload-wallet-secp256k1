@@ -1,4 +1,4 @@
-import { Blockchain, EmulationError, SandboxContract, createShardAccount, internal } from '@ton/sandbox';
+import { Blockchain, EmulationError, SandboxContract, TreasuryContract, createShardAccount, internal } from '@ton/sandbox';
 import { beginCell, Cell, SendMode, toNano, Address, internal as internal_relaxed, Dictionary, BitString, OutActionSendMsg } from '@ton/core';
 import {HighloadWalletV3, TIMEOUT_SIZE, TIMESTAMP_SIZE} from '../wrappers/HighloadWalletV3';
 import '@ton/test-utils';
@@ -27,6 +27,8 @@ describe('HighloadWalletV3', () => {
 
     let blockchain: Blockchain;
     let highloadWalletV3: SandboxContract<HighloadWalletV3>;
+
+    let deployer: SandboxContract<TreasuryContract>;
 
     let shouldRejectWith: (p: Promise<unknown>, code: number) => Promise<void>;
     let getContractData: (address: Address) => Promise<Cell>;
@@ -103,7 +105,7 @@ describe('HighloadWalletV3', () => {
             )
         );
 
-        const deployer = await blockchain.treasury('deployer');
+        deployer = await blockchain.treasury('deployer', {balance: toNano('10000000')});
 
         const deployResult = await highloadWalletV3.sendDeploy(deployer.getSender(), toNano('999999'));
 
@@ -115,7 +117,9 @@ describe('HighloadWalletV3', () => {
     });
 
     it('should deploy', async () => {
-        expect(await highloadWalletV3.getPublicKey()).toEqual(keyPair.publicKeyNoPfx);
+        const pubKey = await highloadWalletV3.getPublicKey();
+        expect(pubKey.parity).toEqual(keyPair.publicKey[0] % 2);
+        expect(pubKey.key).toEqual(keyPair.publicKeyNoPfx);
     });
 
     it('should pass check sign', async () => {
@@ -126,7 +130,7 @@ describe('HighloadWalletV3', () => {
 
             const queryId = HighloadQueryId.fromShiftAndBitNumber(BigInt(rndShift), BigInt(rndBitNum));
 
-            const smc = await blockchain.getContract(highloadWalletV3.address);
+            // const smc = await blockchain.getContract(highloadWalletV3.address);
             // smc.setVerbosity('vm_logs_full');
             const testResult = await highloadWalletV3.sendExternalMessage(
                 keyPair.secretKey,
@@ -152,6 +156,56 @@ describe('HighloadWalletV3', () => {
 
     });
 
+    it('should work fine with 1K random key pairs', async () => {
+        const prevState = blockchain.snapshot();
+
+        for(let i = 0; i < 1000; i++) {
+            const privKey = secp.utils.randomPrivateKey();
+            const pubKey  = await secp.getPublicKey(privKey,);
+            const testWallet  = blockchain.openContract(HighloadWalletV3.createFromConfig(
+                {
+                    publicKey: pubKey,
+                    subwalletId: SUBWALLET_ID,
+                    timeout: DEFAULT_TIMEOUT
+                },
+                code
+                )
+            );
+
+            const deployResult = await testWallet.sendDeploy(deployer.getSender(), toNano('10'));
+            expect(deployResult.transactions).toHaveTransaction({
+                on: testWallet.address,
+                from: deployer.address,
+                aborted: false,
+                deploy: true
+            });
+            const message      = testWallet.createInternalTransfer({actions: [], queryId: HighloadQueryId.fromQueryId(0n), value: 0n})
+            try {
+                const testResult = await testWallet.sendExternalMessage(
+                    privKey,
+                    {
+                        createdAt: 1000,
+                        query_id: 42n,
+                        message,
+                        mode: 128,
+                        subwalletId: SUBWALLET_ID,
+                        timeout: DEFAULT_TIMEOUT
+                    }
+                );
+
+                expect(testResult.transactions).toHaveTransaction({
+                    from: testWallet.address,
+                    to: testWallet.address,
+                    success: true,
+                });
+            } catch(e: any) {
+                console.log(e.vmLogs);
+                throw e;
+            } finally {
+                await blockchain.loadFrom(prevState);
+            }
+        }
+    });
 
     it('should fail check sign', async () => {
         const message = highloadWalletV3.createInternalTransfer({actions: [], queryId: HighloadQueryId.fromQueryId(0n), value: 0n})
@@ -445,7 +499,7 @@ describe('HighloadWalletV3', () => {
         const smc = await blockchain.getContract(highloadWalletV3.address);
         const walletState = await getContractData(highloadWalletV3.address);
         const ws   = walletState.beginParse();
-        const head = ws.loadBits(256 + 32); // pubkey + subwallet
+        const head = ws.loadBits(1 + 256 + 32); // parity bit + pubkey + subwallet
         const tail = ws.skip(2 + TIMESTAMP_SIZE).loadBits(TIMEOUT_SIZE);
 
         const newState = beginCell()

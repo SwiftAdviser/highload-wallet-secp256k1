@@ -35,7 +35,8 @@ export const TIMEOUT_SIZE = 22;
 
 export function highloadWalletV3ConfigToCell(config: HighloadWalletV3Config): Cell {
     return beginCell()
-        .storeBuffer(Buffer.from(config.publicKey.subarray(1, config.publicKey.length)))
+        .storeUint(config.publicKey[0] % 2, 1) // String recId parity bit
+        .storeBuffer(Buffer.from(config.publicKey.slice(1, config.publicKey.length)))
         .storeUint(config.subwalletId, 32)
         .storeUint(0, 1 + 1 + TIMESTAMP_SIZE)
         .storeUint(config.timeout, TIMEOUT_SIZE)
@@ -100,9 +101,10 @@ export class HighloadWalletV3 implements Contract {
             .endCell();
 
             const signature = await secp.sign(messageInner.hash(), secretKey);
+            // console.log("Recovery:", signature.recovery);
         await provider.external(
             beginCell()
-                .storeUint(signature.recovery, 8)
+                .storeUint(signature.recovery, 1)
                 .storeUint(signature.r, 256)
                 .storeUint(signature.s, 256)
                 // .storeBuffer(Buffer.from(signature.toCompactRawBytes()))
@@ -189,10 +191,14 @@ export class HighloadWalletV3 implements Contract {
     }
 
 
-    async getPublicKey(provider: ContractProvider): Promise<Buffer> {
+    async getPublicKey(provider: ContractProvider) {
         const res = (await provider.get('get_public_key', [])).stack;
+        const parity  = res.readNumber();
         const pubKeyU = res.readBigNumber();
-        return Buffer.from(pubKeyU.toString(16).padStart(32 * 2, '0'), 'hex');
+        return {
+            parity: parity,
+            key: Buffer.from(pubKeyU.toString(16).padStart(32 * 2, '0'), 'hex')
+        }
     }
 
     async getSubwalletId(provider: ContractProvider): Promise<number> {

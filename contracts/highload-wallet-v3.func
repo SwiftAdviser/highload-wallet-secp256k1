@@ -18,8 +18,8 @@ const int error::invalid_message_to_send = 37;
 const int error::invalid_timeout = 38;
 
 const int KEY_SIZE = 13;
-const int SIGNATURE_SIZE = 512 + 8;
-const int KEY_PREFIX_SIZE = 8;
+const int SIGNATURE_SIZE = 512 + 1;
+const int PARITY_BIT_SIZE = 1;
 const int PUBLIC_KEY_SIZE = 256;
 const int SUBWALLET_ID_SIZE = 32;
 const int TIMESTAMP_SIZE = 64;
@@ -66,6 +66,7 @@ const int BIT_NUMBER_SIZE = 10; ;; 2^10 = 1024
     int msg_inner_hash = msg_inner.cell_hash();
 
     slice data_slice = get_data().begin_parse();
+    int key_parity = data_slice~load_uint(PARITY_BIT_SIZE);
     int public_key = data_slice~load_uint(PUBLIC_KEY_SIZE);
     int subwallet_id = data_slice~load_uint(SUBWALLET_ID_SIZE);
     cell old_queries = data_slice~load_dict();
@@ -82,7 +83,7 @@ const int BIT_NUMBER_SIZE = 10; ;; 2^10 = 1024
         last_clean_time = now();
     }
 
-    throw_unless(error::invalid_signature, check_secp256k1_signature(msg_inner_hash, signature, public_key));
+    throw_unless(error::invalid_signature, check_secp256k1_signature(msg_inner_hash, signature, public_key, key_parity));
 
     slice msg_inner_slice = msg_inner.begin_parse();
     int _subwallet_id = msg_inner_slice~load_uint(SUBWALLET_ID_SIZE);
@@ -123,6 +124,7 @@ const int BIT_NUMBER_SIZE = 10; ;; 2^10 = 1024
     queries~udict_set_ref(KEY_SIZE, shift, new_value.end_cell());
 
     set_data(begin_cell()
+        .store_uint(key_parity, PARITY_BIT_SIZE)
         .store_uint(public_key, PUBLIC_KEY_SIZE)
         .store_uint(subwallet_id, SUBWALLET_ID_SIZE)
         .store_dict(old_queries)
@@ -181,25 +183,27 @@ const int BIT_NUMBER_SIZE = 10; ;; 2^10 = 1024
 }
 
 
-int get_public_key() method_id {
-    return get_data().begin_parse().preload_uint(PUBLIC_KEY_SIZE);
+(int, int) get_public_key() method_id {
+    var ds = get_data().begin_parse();
+    int parity = ds~load_uint(PARITY_BIT_SIZE);
+    return (parity, ds.preload_uint(PUBLIC_KEY_SIZE));
 }
 
 int get_subwallet_id() method_id {
     slice data_slice = get_data().begin_parse();
-    data_slice~skip_bits(PUBLIC_KEY_SIZE); ;; skip public_key
+    data_slice~skip_bits(PARITY_BIT_SIZE + PUBLIC_KEY_SIZE); ;; skip public_key
     return data_slice.preload_uint(SUBWALLET_ID_SIZE);
 }
 
 int get_last_clean_time() method_id {
     slice data_slice = get_data().begin_parse();
-    data_slice~skip_bits(PUBLIC_KEY_SIZE + SUBWALLET_ID_SIZE + 1 + 1); ;; skip: public_key, subwallet_id, old_queried, queries
+    data_slice~skip_bits(PARITY_BIT_SIZE + PUBLIC_KEY_SIZE + SUBWALLET_ID_SIZE + 1 + 1); ;; skip: public_key, subwallet_id, old_queried, queries
     return data_slice.preload_uint(TIMESTAMP_SIZE);
 }
 
 int get_timeout() method_id {
     slice data_slice = get_data().begin_parse();
-    data_slice~skip_bits(PUBLIC_KEY_SIZE + SUBWALLET_ID_SIZE + 1 + 1 + TIMESTAMP_SIZE); ;; skip: public_key, subwallet_id, old_queried, queries, last_clean_time
+    data_slice~skip_bits(PARITY_BIT_SIZE + PUBLIC_KEY_SIZE + SUBWALLET_ID_SIZE + 1 + 1 + TIMESTAMP_SIZE); ;; skip: public_key, subwallet_id, old_queried, queries, last_clean_time
     return data_slice.preload_uint(TIMEOUT_SIZE);
 }
 
@@ -208,7 +212,7 @@ int processed?(int query_id, int need_clean) method_id {
     int bit_number = query_id & CELL_BITS_SIZE;
 
     slice data_slice = get_data().begin_parse();
-    data_slice~skip_bits(PUBLIC_KEY_SIZE + SUBWALLET_ID_SIZE); ;; skip: public_key, subwallet_id
+    data_slice~skip_bits(PARITY_BIT_SIZE + PUBLIC_KEY_SIZE + SUBWALLET_ID_SIZE); ;; skip: public_key, subwallet_id
     cell old_queries = data_slice~load_dict();
     cell queries = data_slice~load_dict();
     int last_clean_time = data_slice~load_uint(TIMESTAMP_SIZE);
