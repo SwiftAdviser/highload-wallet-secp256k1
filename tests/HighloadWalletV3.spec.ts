@@ -156,6 +156,37 @@ describe('HighloadWalletV3', () => {
 
     });
 
+    it('should reject signature with inverted recovery bit', async () => {
+        const message = highloadWalletV3.createInternalTransfer({actions: [], queryId: HighloadQueryId.fromQueryId(0n), value: 0n})
+
+        const messageInner = beginCell()
+            .storeUint(SUBWALLET_ID, 32)
+            .storeRef(beginCell().store(storeMessageRelaxed(message)).endCell())
+            .storeUint(128, 8)
+            .storeUint(42, 23)
+            .storeUint(1000, TIMESTAMP_SIZE)
+            .storeUint(DEFAULT_TIMEOUT, TIMEOUT_SIZE)
+            .endCell();
+
+            const messageHash = messageInner.hash();
+            const signature = await secp.sign(messageInner.hash(), keyPair.secretKey);
+            const recInv = signature.recovery == 0 ? 1 : 0;
+
+            let extMsg = beginCell()
+                            .storeUint(recInv, 1)
+                            .storeUint(signature.r, 256)
+                            .storeUint(signature.s, 256)
+                            .storeRef(messageInner)
+                           .endCell();
+
+            let res = blockchain.sendMessage(external({
+                to: highloadWalletV3.address,
+                body: extMsg,
+            }));
+
+            shouldRejectWith(res, Errors.invalid_signature);
+    });
+
     it('should not accept malleable signature', async () => {
 
         const prevState = blockchain.snapshot();
