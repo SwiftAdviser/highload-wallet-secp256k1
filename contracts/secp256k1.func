@@ -14,5 +14,8 @@ int check_secp256k1_signature(int test_hash, slice data, int public_key, int par
 
 	var (rId, x, y, status) = ecrecover(test_hash, v, r, s);
 
-	return (parity == (y & 1)) & (x == public_key);
+	if(status) {
+		return (parity == (y & 1)) & (x == public_key);
+	}
+	return status;
 }

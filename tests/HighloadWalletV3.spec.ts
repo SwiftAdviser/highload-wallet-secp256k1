@@ -54,7 +54,7 @@ describe('HighloadWalletV3', () => {
             }
             catch(e: unknown) {
                 if(e instanceof EmulationError) {
-                    expect(e.exitCode !== undefined && e.exitCode == code).toBe(true);
+                    expect(e.exitCode).toEqual(code);
                 }
                 else {
                     throw e;
@@ -154,6 +154,33 @@ describe('HighloadWalletV3', () => {
             throw(e);
         }
 
+    });
+
+    it('should reject invalid signature', async () => {
+        const message = highloadWalletV3.createInternalTransfer({actions: [], queryId: HighloadQueryId.fromQueryId(0n), value: 0n})
+
+        const messageInner = beginCell()
+            .storeUint(SUBWALLET_ID, 32)
+            .storeRef(beginCell().store(storeMessageRelaxed(message)).endCell())
+            .storeUint(128, 8)
+            .storeUint(42, 23)
+            .storeUint(1000, TIMESTAMP_SIZE)
+            .storeUint(DEFAULT_TIMEOUT, TIMEOUT_SIZE)
+            .endCell();
+
+        // ecrecovery will return false in case of invalid
+        // signature parameters
+        let extMsg = beginCell()
+                        .storeUint(0, 1)
+                        .storeUint(42n, 256)
+                        .storeUint(0n, 256) // Can't be zero. Invalid sig
+                        .storeRef(messageInner)
+                       .endCell();
+
+        shouldRejectWith(blockchain.sendMessage(external({
+            to: highloadWalletV3.address,
+            body: extMsg
+        })), Errors.invalid_signature);
     });
 
     it('should reject signature with inverted recovery bit', async () => {
