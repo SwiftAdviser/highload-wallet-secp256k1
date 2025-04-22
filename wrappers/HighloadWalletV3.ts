@@ -192,12 +192,18 @@ export class HighloadWalletV3 implements Contract {
 
 
     async getPublicKey(provider: ContractProvider) {
-        const res = (await provider.get('get_public_key', [])).stack;
-        const parity  = res.readNumber();
-        const pubKeyU = res.readBigNumber();
+        const res  = (await provider.get('get_public_key', [])).stack;
+        let pubKey = res.readBigNumber();
+        let parity: number;
+        if(pubKey < 0n) {
+            parity = 1;
+            pubKey = -pubKey;
+        } else {
+            parity = 0;
+        }
         return {
             parity: parity,
-            key: Buffer.from(pubKeyU.toString(16).padStart(32 * 2, '0'), 'hex')
+            key: Buffer.from(pubKey.toString(16).padStart(32 * 2, '0'), 'hex')
         }
     }
 
