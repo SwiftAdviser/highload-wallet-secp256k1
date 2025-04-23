@@ -188,6 +188,7 @@ int get_public_key() method_id {
     int parity = ds~load_uint(PARITY_BIT_SIZE);
     int key    = ds.preload_uint(PUBLIC_KEY_SIZE);
 
+    ;; negative sign for public key odd y coordinate, positive otherwise
     return parity == 0 ? key : - key;
 }
 
