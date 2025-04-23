@@ -1,8 +1,128 @@
+unit$_ = Unit;
+true$_ = True;
+// EMPTY False;
+bool_false$0 = Bool;
+bool_true$1 = Bool;
+bool_false$0 = BoolFalse;
+bool_true$1 = BoolTrue;
+nothing$0 {X:Type} = Maybe X;
+just$1 {X:Type} value:X = Maybe X;
+left$0 {X:Type} {Y:Type} value:X = Either X Y;
+right$1 {X:Type} {Y:Type} value:Y = Either X Y;
+pair$_ {X:Type} {Y:Type} first:X second:Y = Both X Y;
+
+bit$_ (## 1) = Bit;
+
+/*
+ *
+ *   FROM hashmap.tlb
+ *
+ */
+// ordinary Hashmap / HashmapE, with fixed length keys
+//
+hm_edge#_ {n:#} {X:Type} {l:#} {m:#} label:(HmLabel ~l n) 
+          {n = (~m) + l} node:(HashmapNode m X) = Hashmap n X;
+
+hmn_leaf#_ {X:Type} value:X = HashmapNode 0 X;
+hmn_fork#_ {n:#} {X:Type} left:^(Hashmap n X) 
+           right:^(Hashmap n X) = HashmapNode (n + 1) X;
+
+hml_short$0 {m:#} {n:#} len:(Unary ~n) {n <= m} s:(n * Bit) = HmLabel ~n m;
+hml_long$10 {m:#} n:(#<= m) s:(n * Bit) = HmLabel ~n m;
+hml_same$11 {m:#} v:Bit n:(#<= m) = HmLabel ~n m;
+
+unary_zero$0 = Unary ~0;
+unary_succ$1 {n:#} x:(Unary ~n) = Unary ~(n + 1);
+
+hme_empty$0 {n:#} {X:Type} = HashmapE n X;
+hme_root$1 {n:#} {X:Type} root:^(Hashmap n X) = HashmapE n X;
+
+
+addr_none$00 = MsgAddressExt;
+addr_extern$01 len:(## 9) external_address:(bits len) 
+             = MsgAddressExt;
+anycast_info$_ depth:(#<= 30) { depth >= 1 }
+   rewrite_pfx:(bits depth) = Anycast;
+addr_std$10 anycast:(Maybe Anycast) 
+   workchain_id:int8 address:bits256  = MsgAddressInt;
+addr_var$11 anycast:(Maybe Anycast) addr_len:(## 9) 
+   workchain_id:int32 address:(bits addr_len) = MsgAddressInt;
+_ _:MsgAddressInt = MsgAddress;
+_ _:MsgAddressExt = MsgAddress;
+//
+var_uint$_ {n:#} len:(#< n) value:(uint (len * 8))
+         = VarUInteger n;
+var_int$_ {n:#} len:(#< n) value:(int (len * 8)) 
+        = VarInteger n;
+nanograms$_ amount:(VarUInteger 16) = Grams;
+
+_ grams:Grams = Coins;
+
+extra_currencies$_ dict:(HashmapE 32 (VarUInteger 32)) 
+                 = ExtraCurrencyCollection;
+currencies$_ grams:Grams other:ExtraCurrencyCollection 
+           = CurrencyCollection;
+
+//
+int_msg_info$0 ihr_disabled:Bool bounce:Bool bounced:Bool
+  src:MsgAddressInt dest:MsgAddressInt 
+  value:CurrencyCollection ihr_fee:Grams fwd_fee:Grams
+  created_lt:uint64 created_at:uint32 = CommonMsgInfo;
+ext_in_msg_info$10 src:MsgAddressExt dest:MsgAddressInt 
+  import_fee:Grams = CommonMsgInfo;
+ext_out_msg_info$11 src:MsgAddressInt dest:MsgAddressExt
+  created_lt:uint64 created_at:uint32 = CommonMsgInfo;
+
+int_msg_info$0 ihr_disabled:Bool bounce:Bool bounced:Bool
+  src:MsgAddress dest:MsgAddressInt 
+  value:CurrencyCollection ihr_fee:Grams fwd_fee:Grams
+  created_lt:uint64 created_at:uint32 = CommonMsgInfoRelaxed;
+ext_out_msg_info$11 src:MsgAddress dest:MsgAddressExt
+  created_lt:uint64 created_at:uint32 = CommonMsgInfoRelaxed;
+
+tick_tock$_ tick:Bool tock:Bool = TickTock;
+
+_ split_depth:(Maybe (## 5)) special:(Maybe TickTock)
+  code:(Maybe ^Cell) data:(Maybe ^Cell)
+  library:(Maybe ^Cell) = StateInit;
+
+// StateInitWithLibs is used to validate sent and received messages
+_ split_depth:(Maybe (## 5)) special:(Maybe TickTock)
+  code:(Maybe ^Cell) data:(Maybe ^Cell)
+  library:(HashmapE 256 SimpleLib) = StateInitWithLibs;
+
+simple_lib$_ public:Bool root:^Cell = SimpleLib;
+
+message$_ {X:Type} info:CommonMsgInfo
+  init:(Maybe (Either StateInit ^StateInit))
+  body:(Either X ^X) = Message X;
+
+message$_ {X:Type} info:CommonMsgInfoRelaxed
+  init:(Maybe (Either StateInit ^StateInit))
+  body:(Either X ^X) = MessageRelaxed X;
+  
+_ (Message Any) = MessageAny;
+
+out_list_empty$_ = OutList 0;
+out_list$_ {n:#} prev:^(OutList n) action:OutAction
+  = OutList (n + 1);
+
+action_send_msg#0ec3c86d mode:(## 8) 
+  out_msg:^(MessageRelaxed Any) = OutAction;
+action_set_code#ad4de08e new_code:^Cell = OutAction;
+action_reserve_currency#36e6b809 mode:(## 8)
+  currency:CurrencyCollection = OutAction;
+libref_hash$0 lib_hash:bits256 = LibRef;
+libref_ref$1 library:^Cell = LibRef;
+action_change_library#26fa1dd4 mode:(## 7)
+  libref:LibRef = OutAction;
+
+
 storage$_ parity:uint1 public_key:bits256 subwallet_id:uint32 old_queries:(HashmapE 13 ^Cell)
           queries:(HashmapE 13 ^Cell) last_clean_time:uint64 timeout:uint22
           = Storage;
 
-_ shift:uint13 bit_number:(## 10) { bit_number >= 0 } { bit_number < 1023 } = QueryId;
+_ shift:uint13 bit_number:(## 10) = QueryId;
 
 // highload v3
 
@@ -10,8 +130,8 @@ _ shift:uint13 bit_number:(## 10) { bit_number >= 0 } { bit_number < 1023 } = Qu
 
 internal_transfer#ae42e5a4 {n:#} query_id:uint64 actions:^(OutList n) = InternalMsgBody n;
 
-_ {n:#}  subwallet_id:uint32 message_to_send:^Cell send_mode:uint8 query_id:QueryId created_at:uint64 timeout:uint22 = MsgInner;
+_ subwallet_id:uint32 message_to_send:^Cell send_mode:uint8 query_id:QueryId created_at:uint64 timeout:uint22 = MsgInner;
 
 signature$_ recovery_bit:uint1 r:uint256 s:uint256 = Secp256k1Signature;
 
-msg_body$_ {n:#} signature:Secp256k1Signature ^(MsgInner) = ExternalInMsgBody;
+msg_body$_ signature:Secp256k1Signature message:^(MsgInner) = ExternalInMsgBody;
