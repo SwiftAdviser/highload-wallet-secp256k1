@@ -1,5 +1,5 @@
-storage$_ public_key:bits256 subwallet_id:uint32 old_queries:(HashmapE 14 ^Cell)
-          queries:(HashmapE 14 ^Cell) last_clean_time:uint64 timeout:uint22
+storage$_ parity:uint1 public_key:bits256 subwallet_id:uint32 old_queries:(HashmapE 13 ^Cell)
+          queries:(HashmapE 13 ^Cell) last_clean_time:uint64 timeout:uint22
           = Storage;
 
 _ shift:uint13 bit_number:(## 10) { bit_number >= 0 } { bit_number < 1023 } = QueryId;
@@ -12,5 +12,6 @@ internal_transfer#ae42e5a4 {n:#} query_id:uint64 actions:^(OutList n) = Internal
 
 _ {n:#}  subwallet_id:uint32 message_to_send:^Cell send_mode:uint8 query_id:QueryId created_at:uint64 timeout:uint22 = MsgInner;
 
-msg_body$_ {n:#} signature:bits512 ^(MsgInner) = ExternalInMsgBody;
+signature$_ recovery_bit:uint1 r:uint256 s:uint256 = Secp256k1Signature;
 
+msg_body$_ {n:#} signature:Secp256k1Signature ^(MsgInner) = ExternalInMsgBody;
