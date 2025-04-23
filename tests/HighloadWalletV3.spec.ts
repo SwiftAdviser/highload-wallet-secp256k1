@@ -168,19 +168,25 @@ describe('HighloadWalletV3', () => {
             .storeUint(DEFAULT_TIMEOUT, TIMEOUT_SIZE)
             .endCell();
 
-        // ecrecovery will return false in case of invalid
-        // signature parameters
-        let extMsg = beginCell()
-                        .storeUint(0, 1)
-                        .storeUint(42n, 256)
-                        .storeUint(0n, 256) // Can't be zero. Invalid sig
-                        .storeRef(messageInner)
-                       .endCell();
+        const realSig= await secp.sign(messageInner.hash(), keyPair.secretKey);
 
-        shouldRejectWith(blockchain.sendMessage(external({
-            to: highloadWalletV3.address,
-            body: extMsg
-        })), Errors.invalid_signature);
+        for(let vrs of [
+            {v: realSig.recovery, r: realSig.r, s: 0n},
+            {v: realSig.recovery, r: 0n, s: realSig.s},
+            {v: realSig.recovery == 0 ? 1 : 0, r: realSig.r, s: realSig.s}
+        ]) {
+            let extMsg = beginCell()
+                         .storeUint(vrs.v, 1)
+                         .storeUint(vrs.r, 256)
+                         .storeUint(vrs.s, 256)
+                         .storeRef(messageInner)
+                        .endCell();
+            shouldRejectWith(blockchain.sendMessage(external({
+                to: highloadWalletV3.address,
+                body: extMsg
+            })), Errors.invalid_signature);
+
+        }
     });
 
     it('should reject signature with inverted recovery bit', async () => {
